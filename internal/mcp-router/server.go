@@ -111,13 +111,14 @@ func (s *ExtProcServer) Process(stream extProcV3.ExternalProcessor_ProcessServer
 			span.End()
 			ctx, span = tracer().Start(ctx, "mcp-router.process", //nolint:spancheck // ended via defer closure
 				trace.WithAttributes(
+					componentAttr,
 					attribute.String("http.method", method),
 					attribute.String("http.path", requestPath),
 					attribute.String("http.request_id", requestID),
 				),
 			)
 
-			responses, _ := s.HandleRequestHeaders(r.RequestHeaders)
+			responses, _ := s.HandleRequestHeaders(ctx, r.RequestHeaders)
 			s.Logger.DebugContext(ctx, "[ext_proc ] Process: ProcessingRequest_RequestHeaders", "request id:", requestID, "path", requestPath, "method", method)
 			for _, response := range responses {
 				s.Logger.DebugContext(ctx, "sending header processing instructions to envoy", "response", response)

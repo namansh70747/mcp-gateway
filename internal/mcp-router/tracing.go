@@ -13,6 +13,8 @@ import (
 
 const tracerName = "mcp-router"
 
+var componentAttr = attribute.String("component", "mcp-router")
+
 func tracer() trace.Tracer {
 	return otel.Tracer(tracerName)
 }
@@ -48,6 +50,7 @@ func extractTraceContext(ctx context.Context, headers *corev3.HeaderMap) context
 
 func spanAttributes(mcpReq *MCPRequest) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
+		componentAttr,
 		attribute.String("mcp.method.name", mcpReq.Method),
 		attribute.String("jsonrpc.protocol.version", mcpReq.JSONRPC),
 	}

@@ -225,8 +225,8 @@ func (mr *MCPRequest) ToBytes() ([]byte, error) {
 }
 
 // HandleRequestHeaders handles request headers minimally.
-func (s *ExtProcServer) HandleRequestHeaders(_ *eppb.HttpHeaders) ([]*eppb.ProcessingResponse, error) {
-	s.Logger.Info("Request Handler: HandleRequestHeaders called")
+func (s *ExtProcServer) HandleRequestHeaders(ctx context.Context, _ *eppb.HttpHeaders) ([]*eppb.ProcessingResponse, error) {
+	s.Logger.InfoContext(ctx, "Request Handler: HandleRequestHeaders called")
 	requestHeaders := NewHeaders()
 	response := NewResponse()
 	requestHeaders.WithAuthority(s.RoutingConfig.MCPGatewayExternalHostname)
@@ -237,6 +237,7 @@ func (s *ExtProcServer) HandleRequestHeaders(_ *eppb.HttpHeaders) ([]*eppb.Proce
 func (s *ExtProcServer) RouteMCPRequest(ctx context.Context, mcpReq *MCPRequest) []*eppb.ProcessingResponse {
 	ctx, span := tracer().Start(ctx, "mcp-router.route-decision",
 		trace.WithAttributes(
+			componentAttr,
 			attribute.String("mcp.method.name", mcpReq.Method),
 		),
 	)
@@ -277,6 +278,7 @@ func (s *ExtProcServer) HandleToolCall(ctx context.Context, mcpReq *MCPRequest) 
 
 	ctx, span := tracer().Start(ctx, "mcp-router.tool-call",
 		trace.WithAttributes(
+			componentAttr,
 			attribute.String("gen_ai.tool.name", toolName),
 			attribute.String("mcp.session.id", mcpReq.GetSessionID()),
 		),
@@ -308,6 +310,7 @@ func (s *ExtProcServer) HandleToolCall(ctx context.Context, mcpReq *MCPRequest) 
 	{
 		_, infoSpan := tracer().Start(ctx, "mcp-router.broker.get-server-info",
 			trace.WithAttributes(
+				componentAttr,
 				attribute.String("gen_ai.tool.name", toolName),
 			),
 		)
@@ -417,6 +420,7 @@ func (s *ExtProcServer) HandlePromptGet(ctx context.Context, mcpReq *MCPRequest)
 
 	ctx, span := tracer().Start(ctx, "mcp-router.prompt-get",
 		trace.WithAttributes(
+			componentAttr,
 			attribute.String("mcp.prompt.name", promptName),
 			attribute.String("mcp.session.id", mcpReq.GetSessionID()),
 		),
@@ -446,6 +450,7 @@ func (s *ExtProcServer) HandlePromptGet(ctx context.Context, mcpReq *MCPRequest)
 	{
 		_, infoSpan := tracer().Start(ctx, "mcp-router.broker.get-server-info-by-prompt",
 			trace.WithAttributes(
+				componentAttr,
 				attribute.String("mcp.prompt.name", promptName),
 			),
 		)
@@ -498,6 +503,7 @@ func (s *ExtProcServer) routeToUpstream(ctx context.Context, span trace.Span, mc
 	{
 		_, cacheSpan := tracer().Start(ctx, "mcp-router.session-cache.get",
 			trace.WithAttributes(
+				componentAttr,
 				attribute.String("mcp.session.id", mcpReq.GetSessionID()),
 			),
 		)
@@ -577,9 +583,19 @@ func (s *ExtProcServer) HandleElicitationResponse(
 	ctx context.Context,
 	mcpReq *MCPRequest,
 ) []*eppb.ProcessingResponse {
+	ctx, span := tracer().Start(ctx, "mcp-router.elicitation-response",
+		trace.WithAttributes(
+			componentAttr,
+			attribute.String("mcp.session.id", mcpReq.GetSessionID()),
+		),
+	)
+	defer span.End()
+
 	response := NewResponse()
 
 	if sessionErr := s.validateSession(mcpReq.GetSessionID()); sessionErr != nil {
+		span.RecordError(sessionErr)
+		span.SetStatus(codes.Error, sessionErr.Error())
 		response.WithImmediateResponse(sessionErr.Code(), sessionErr.Error())
 		return response.Build()
 	}
@@ -589,16 +605,24 @@ func (s *ExtProcServer) HandleElicitationResponse(
 	entry, ok, err := s.ElicitationMap.Lookup(ctx, gatewayID)
 	if err != nil {
 		s.Logger.ErrorContext(ctx, "failed to lookup elicitation mapping", "error", err, "gatewayID", gatewayID)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "elicitation lookup failed")
 		response.WithImmediateResponse(500, "internal error")
 		return response.Build()
 	}
 	if !ok {
+		lookupErr := fmt.Errorf("elicitation response for unknown gateway ID: %s", gatewayID)
 		s.Logger.ErrorContext(ctx, "elicitation response for unknown gateway ID", "gatewayID", gatewayID)
+		span.RecordError(lookupErr)
+		span.SetStatus(codes.Error, "unknown elicitation ID")
 		response.WithImmediateResponse(400, "unknown elicitation ID")
 		return response.Build()
 	}
 	if entry.GatewaySessionID != mcpReq.GetSessionID() {
+		mismatchErr := fmt.Errorf("elicitation session mismatch: expected %s, got %s", entry.GatewaySessionID, mcpReq.GetSessionID())
 		s.Logger.ErrorContext(ctx, "elicitation session mismatch", "gatewayID", gatewayID, "expected", entry.GatewaySessionID, "got", mcpReq.GetSessionID())
+		span.RecordError(mismatchErr)
+		span.SetStatus(codes.Error, "session mismatch")
 		response.WithImmediateResponse(403, "session mismatch")
 		return response.Build()
 	}
@@ -609,6 +633,8 @@ func (s *ExtProcServer) HandleElicitationResponse(
 	mcpServerConfig, err := s.RoutingConfig.GetServerConfigByName(entry.ServerName)
 	if err != nil {
 		s.Logger.ErrorContext(ctx, "server not found for elicitation response", "server", entry.ServerName)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "server not found")
 		response.WithImmediateResponse(500, "internal error")
 		return response.Build()
 	}
@@ -620,6 +646,8 @@ func (s *ExtProcServer) HandleElicitationResponse(
 	path, err := mcpServerConfig.Path()
 	if err != nil {
 		s.Logger.ErrorContext(ctx, "failed to parse url for backend", "error", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "path parse failed")
 		response.WithImmediateResponse(500, "internal error")
 		return response.Build()
 	}
@@ -628,6 +656,8 @@ func (s *ExtProcServer) HandleElicitationResponse(
 	body, err := mcpReq.ToBytes()
 	if err != nil {
 		s.Logger.ErrorContext(ctx, "failed to get bytes for elicitation response", "mcpReqID", mcpReq.ID, "serverName", entry.ServerName)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "marshal failed")
 		response.WithImmediateResponse(500, "internal error")
 		return response.Build()
 	}
@@ -647,6 +677,7 @@ func (s *ExtProcServer) HandleElicitationResponse(
 func (s *ExtProcServer) initializeMCPSeverSession(ctx context.Context, mcpReq *MCPRequest) (string, error) {
 	ctx, initSpan := tracer().Start(ctx, "mcp-router.session-init",
 		trace.WithAttributes(
+			componentAttr,
 			attribute.String("mcp.server", mcpReq.serverName),
 			attribute.String("mcp.session.id", mcpReq.GetSessionID()),
 		),
@@ -797,6 +828,7 @@ func (s *ExtProcServer) initializeMCPSeverSession(ctx context.Context, mcpReq *M
 func (s *ExtProcServer) HandleNoneToolCall(ctx context.Context, mcpReq *MCPRequest) []*eppb.ProcessingResponse {
 	ctx, span := tracer().Start(ctx, "mcp-router.broker-passthrough",
 		trace.WithAttributes(
+			componentAttr,
 			attribute.String("mcp.method.name", mcpReq.Method),
 		),
 	)

@@ -1317,7 +1317,7 @@ func TestHandleRequestHeaders(t *testing.T) {
 				},
 			}
 
-			responses, err := server.HandleRequestHeaders(headers)
+			responses, err := server.HandleRequestHeaders(context.Background(), headers)
 
 			require.NoError(t, err)
 			require.Len(t, responses, 1)

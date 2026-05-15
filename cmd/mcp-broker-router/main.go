@@ -30,6 +30,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	redis "github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -383,7 +385,7 @@ func setUpHTTPServer(address string, mcpBroker broker.MCPBroker, sessionManager 
 		mux.Handle("/tokens", tokenHandler)
 		mux.Handle("/mcp/elicitation", elicitationHandler)
 	}
-	mux.Handle("/mcp", streamableHTTPServer)
+	mux.Handle("/mcp", traceContextMiddleware(streamableHTTPServer))
 
 	return httpSrv, streamableHTTPServer
 }
@@ -451,4 +453,11 @@ func LoadConfig(path string) {
 			s.Hostname,
 		)
 	}
+}
+
+func traceContextMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
