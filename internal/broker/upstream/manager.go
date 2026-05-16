@@ -421,7 +421,13 @@ func (man *MCPManager) manage(ctx context.Context, event eventType) {
 			}
 		}
 	}
-	man.setStatus(errors.Join(toolErr, promptErr), numberOfTools, numberOfPrompts, invalidTools, invalidPrompts)
+	jointErr := errors.Join(toolErr, promptErr)
+	man.setStatus(jointErr, numberOfTools, numberOfPrompts, invalidTools, invalidPrompts)
+	if jointErr != nil {
+		man.applyBackoff()
+	} else {
+		man.resetBackoff()
+	}
 }
 
 func (man *MCPManager) shouldFetchTools(event eventType) bool {
@@ -462,14 +468,12 @@ func (man *MCPManager) setStatus(err error, toolCount int, promptCount int, inva
 	if err != nil {
 		man.status.Message = err.Error()
 		man.status.Ready = false
-		man.applyBackoff()
 		return
 	}
 	man.status.TotalTools = toolCount
 	man.status.TotalPrompts = promptCount
 	man.status.Ready = true
 	man.status.Message = fmt.Sprintf("server added successfully. Total tools added %d. Total prompts added %d", toolCount, promptCount)
-	man.resetBackoff()
 }
 
 func (man *MCPManager) resetBackoff() {
