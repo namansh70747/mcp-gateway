@@ -7,10 +7,19 @@ import (
 	"slices"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // FilterPrompts reduces the prompt set based on authorization headers.
-func (broker *mcpBrokerImpl) FilterPrompts(_ context.Context, _ any, mcpReq *mcp.ListPromptsRequest, mcpRes *mcp.ListPromptsResult) {
+func (broker *mcpBrokerImpl) FilterPrompts(ctx context.Context, _ any, mcpReq *mcp.ListPromptsRequest, mcpRes *mcp.ListPromptsResult) {
+	attrs := []attribute.KeyValue{brokerComponentAttr}
+	if sid := sessionIDFromContext(ctx); sid != "" {
+		attrs = append(attrs, attribute.String("mcp.session.id", sid))
+	}
+	_, span := brokerTracer().Start(ctx, "mcp-broker.prompts-list", trace.WithAttributes(attrs...))
+	defer span.End()
+
 	broker.logger.Debug("FilterPrompts called", "input_prompts_count", len(mcpRes.Prompts))
 	prompts := mcpRes.Prompts
 	emptyPrompts := []mcp.Prompt{}
@@ -22,6 +31,8 @@ func (broker *mcpBrokerImpl) FilterPrompts(_ context.Context, _ any, mcpReq *mcp
 	prompts = broker.applyAuthorizedCapabilitiesFilterForPrompts(mcpReq.Header, prompts)
 	prompts = broker.applyVirtualServerFilterForPrompts(mcpReq.Header, prompts)
 	prompts = broker.removeGatewayMetaFromPrompts(prompts)
+
+	span.SetAttributes(attribute.Int("mcp.prompts.count", len(prompts)))
 
 	if prompts == nil {
 		prompts = emptyPrompts
