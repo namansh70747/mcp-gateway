@@ -26,6 +26,10 @@ spec:
       labels:
         app: mcp-tls-server
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
       containers:
       - name: mcp-tls-server
         image: ghcr.io/kuadrant/mcp-gateway/test-tls-server:latest
@@ -44,6 +48,11 @@ spec:
           name: https
         - containerPort: 8080
           name: health
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
         readinessProbe:
           httpGet:
             path: /healthz

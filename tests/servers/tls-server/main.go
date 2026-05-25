@@ -107,6 +107,10 @@ func main() {
 			ReadHeaderTimeout: 3 * time.Second,
 		}
 
+		if (*tlsCert != "") != (*tlsKey != "") {
+			log.Fatalf("Both -tls-cert and -tls-key must be provided together")
+		}
+
 		if *tlsCert != "" && *tlsKey != "" {
 			log.Printf("TLS server listening at %s with cert=%s", *httpAddr, *tlsCert)
 			if err := srv.ListenAndServeTLS(*tlsCert, *tlsKey); err != nil {

@@ -107,7 +107,8 @@ var _ = Describe("Custom TLS Configuration", Ordered, func() {
 				"ca.crt": caCertPEM,
 			},
 		}
-		Expect(client.IgnoreAlreadyExists(k8sClient.Create(ctx, labeledCA))).To(Succeed())
+		_ = k8sClient.Delete(ctx, labeledCA)
+		Expect(k8sClient.Create(ctx, labeledCA)).To(Succeed())
 		testResources = append(testResources, labeledCA)
 
 		By("Creating MCPServerRegistration with caCertSecretRef targeting the TLS server")
@@ -155,7 +156,8 @@ var _ = Describe("Custom TLS Configuration", Ordered, func() {
 				"ca.crt": wrongCAPEM,
 			},
 		}
-		Expect(client.IgnoreAlreadyExists(k8sClient.Create(ctx, wrongCA))).To(Succeed())
+		_ = k8sClient.Delete(ctx, wrongCA)
+		Expect(k8sClient.Create(ctx, wrongCA)).To(Succeed())
 		testResources = append(testResources, wrongCA)
 
 		By("Creating MCPServerRegistration with wrong CA")

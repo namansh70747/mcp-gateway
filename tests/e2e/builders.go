@@ -351,6 +351,14 @@ func (b *TestResourcesBuilder) buildExternalResources(routeName string) {
 		},
 	}
 
+	parentRef := gatewayapiv1.ParentReference{
+		Name:      gatewayapiv1.ObjectName(b.gatewayName),
+		Namespace: (*gatewayapiv1.Namespace)(&b.gatewayNamespace),
+	}
+	if b.sectionName != "" {
+		parentRef.SectionName = (*gatewayapiv1.SectionName)(&b.sectionName)
+	}
+
 	b.httpRoute = &gatewayapiv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      routeName,
@@ -359,12 +367,7 @@ func (b *TestResourcesBuilder) buildExternalResources(routeName string) {
 		},
 		Spec: gatewayapiv1.HTTPRouteSpec{
 			CommonRouteSpec: gatewayapiv1.CommonRouteSpec{
-				ParentRefs: []gatewayapiv1.ParentReference{
-					{
-						Name:      gatewayapiv1.ObjectName(b.gatewayName),
-						Namespace: (*gatewayapiv1.Namespace)(&b.gatewayNamespace),
-					},
-				},
+				ParentRefs: []gatewayapiv1.ParentReference{parentRef},
 			},
 			Hostnames: []gatewayapiv1.Hostname{
 				gatewayapiv1.Hostname(b.hostname),
