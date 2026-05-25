@@ -4,6 +4,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// ServerState defines the desired operational state of an MCPServerRegistration.
+// +kubebuilder:validation:Enum=Enabled;Disabled
+type ServerState string
+
+// ServerState constants define the valid operational states for an MCPServerRegistration.
+const (
+	// ServerStateEnabled indicates the broker should maintain a connection to this server.
+	ServerStateEnabled ServerState = "Enabled"
+	// ServerStateDisabled indicates the broker should not connect to this server and should remove any registered tools.
+	ServerStateDisabled ServerState = "Disabled"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=mcpsr
@@ -64,6 +76,13 @@ type MCPServerRegistrationSpec struct {
 	// +optional
 	CredentialRef *SecretReference `json:"credentialRef,omitempty"`
 
+	// state dictates whether the broker should maintain a connection to this server.
+	// When set to Disabled, the broker will remove any registered tools and stop connecting to the server.
+	// The server can be re-enabled at any time by setting this field back to Enabled.
+	// Defaults to Enabled.
+	// +optional
+	// +default="Enabled"
+	State ServerState `json:"state,omitempty"`
 	// tokenURLElicitation enables per-user token collection via URL elicitation.
 	// When set, the router uses the MCP spec's URLElicitationRequiredError (-32042) flow
 	// to collect tokens from capable clients at tool-call time.

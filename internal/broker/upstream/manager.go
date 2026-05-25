@@ -89,6 +89,8 @@ type MCP interface {
 	OnNotification(func(notification mcp.JSONRPCNotification))
 	OnConnectionLost(func(err error))
 	Ping(context.Context) error
+	// IsEnabled returns true if the server should be connected to and have its tools registered.
+	IsEnabled() bool
 }
 
 // ActiveMCPServer is the handle returned by Start. It exposes read-only
@@ -295,6 +297,18 @@ func (man *MCPManager) manage(ctx context.Context, event eventType) {
 		),
 	)
 	defer span.End()
+
+	// Check if the server is enabled before attempting any connection or tool registration.
+	// If disabled, remove all tools and prompts, set status to not ready, and return.
+	// The manager stays alive and will check again on the next ticker tick.
+	if !man.mcp.IsEnabled() {
+		man.logger.Debug("server is not enabled, removing tools and prompts", "upstream mcp server", man.mcp.ID())
+		man.removeAllTools()
+		man.removeAllPrompts()
+		_ = man.mcp.Disconnect()
+		man.setStatus(fmt.Errorf("server is disabled"), 0, 0, nil, nil)
+		return
+	}
 
 	numberOfTools := len(man.tools)
 	numberOfPrompts := len(man.prompts)
