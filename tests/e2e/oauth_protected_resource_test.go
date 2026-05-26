@@ -16,8 +16,15 @@ var _ = Describe("OAuth Protected Resource via CRD", func() {
 	authServer := "https://keycloak.example.com/realms/mcp"
 	deploymentName := "mcp-gateway"
 
+	BeforeEach(func() {
+		Expect(ClearOAuthProtectedResource(ctx, SystemNamespace, MCPExtensionName)).To(Succeed())
+		Eventually(func(g Gomega) {
+			g.Expect(WaitForDeploymentReady(ctx, SystemNamespace, deploymentName)).To(Succeed())
+		}, TestTimeoutMedium, TestRetryInterval).Should(Succeed())
+	})
+
 	AfterEach(func() {
-		_ = ClearOAuthProtectedResource(ctx, SystemNamespace, MCPExtensionName)
+		Expect(ClearOAuthProtectedResource(ctx, SystemNamespace, MCPExtensionName)).To(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(WaitForDeploymentReady(ctx, SystemNamespace, deploymentName)).To(Succeed())
 		}, TestTimeoutMedium, TestRetryInterval).Should(Succeed())

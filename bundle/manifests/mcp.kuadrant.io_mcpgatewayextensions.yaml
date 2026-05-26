@@ -85,7 +85,7 @@ spec:
                     description: authorizationServers lists the OAuth authorization
                       server URLs.
                     items:
-                      pattern: ^https?://
+                      pattern: ^https?://[^,]+$
                       type: string
                     maxItems: 10
                     minItems: 1

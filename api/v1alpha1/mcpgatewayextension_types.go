@@ -128,7 +128,7 @@ type OAuthProtectedResource struct {
 	// +required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=10
-	// +kubebuilder:validation:items:Pattern=`^https?://`
+	// +kubebuilder:validation:items:Pattern=`^https?://[^,]+$`
 	// +listType=atomic
 	AuthorizationServers []string `json:"authorizationServers,omitempty"`
 
