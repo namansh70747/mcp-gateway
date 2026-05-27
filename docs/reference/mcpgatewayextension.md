@@ -6,6 +6,7 @@
 - [TrustedHeadersKey](#trustedheaderskey)
 - [SessionStore](#sessionstore)
 - [AuditConfig](#auditconfig)
+- [OAuthProtectedResource](#oauthprotectedresource)
 - [MCPGatewayExtensionStatus](#mcpgatewayextensionstatus)
 
 ## MCPGatewayExtension
@@ -27,6 +28,7 @@
 | `httpRouteManagement` | String | No | Controls whether the operator manages the gateway HTTPRoute. `Enabled` (default): creates and manages the HTTPRoute. `Disabled`: does not create an HTTPRoute. Disabling does not delete a previously created route |
 | `sessionStore` | [SessionStore](#sessionstore) | No | References a secret for redis-based session storage. When not set, in-memory session storage is used |
 | `urlElicitation` | String | No | Controls URL-based token elicitation. `Enabled`: creates a separate `/tokens` HTTPRoute and passes `--enable-url-elicitation` to the broker. `Disabled` (default): no `/tokens` route is created |
+| `oauthProtectedResource` | [OAuthProtectedResource](#oauthprotectedresource) | No | Configures the OAuth protected resource metadata served at `/.well-known/oauth-protected-resource`. When set, the controller injects `OAUTH_*` env vars into the broker-router deployment |
 | `audit` | [AuditConfig](#auditconfig) | No | Configures the MCP audit trail via Envoy access logs. When set, the operator adds an access log to the gateway and injects audit env vars into the router deployment. When not set, no audit access log is added |
 
 ## MCPGatewayExtensionTargetReference
@@ -58,6 +60,16 @@
 |-----------|----------|:------------:|-----------------|
 | `parameterLogging` | String | No | Controls whether tool call parameters are included in the audit trail. `Enabled`: `params.arguments` from `tools/call` requests are logged, truncated to 1KB. `Disabled` (default): parameters are not logged |
 | `identityHeaders` | []String | No | Header names to check (in order) for caller identity when W3C Baggage `user.id` is absent. Default: `["x-forwarded-email", "x-auth-user"]` |
+
+## OAuthProtectedResource
+
+| **Field** | **Type** | **Required** | **Description** |
+|-----------|----------|:------------:|-----------------|
+| `authorizationServers` | []String | Yes | OAuth authorization server URLs. Injected as `OAUTH_AUTHORIZATION_SERVERS` (comma-separated) |
+| `resourceName` | String | No | Human-readable name for this resource. Defaults to `"MCP Server"`. Injected as `OAUTH_RESOURCE_NAME` |
+| `resource` | String | No | URI of the protected resource. Defaults to `https://<publicHost>/mcp`. Injected as `OAUTH_RESOURCE` |
+| `bearerMethodsSupported` | []String | No | Supported bearer token methods. Defaults to `["header"]`. Injected as `OAUTH_BEARER_METHODS_SUPPORTED` (comma-separated) |
+| `scopesSupported` | []String | No | Supported OAuth scopes. Defaults to `["basic"]`. Injected as `OAUTH_SCOPES_SUPPORTED` (comma-separated) |
 
 ## MCPGatewayExtensionStatus
 

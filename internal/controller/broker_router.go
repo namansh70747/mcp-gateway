@@ -57,6 +57,11 @@ var managedEnvVarNames = []string{
 	"TRUSTED_HEADER_PUBLIC_KEY",
 	"CACHE_CONNECTION_STRING",
 	sessionSigningKeyEnvVar,
+	"OAUTH_RESOURCE_NAME",
+	"OAUTH_RESOURCE",
+	"OAUTH_AUTHORIZATION_SERVERS",
+	"OAUTH_BEARER_METHODS_SUPPORTED",
+	"OAUTH_SCOPES_SUPPORTED",
 }
 
 func brokerRouterLabels() map[string]string {
@@ -120,6 +125,31 @@ func (r *MCPGatewayExtensionReconciler) buildBrokerRouterDeployment(mcpExt *mcpv
 				},
 			},
 		})
+	}
+	if opr := mcpExt.Spec.OAuthProtectedResource; opr != nil {
+		resourceName := "MCP Server"
+		if opr.ResourceName != "" {
+			resourceName = opr.ResourceName
+		}
+		resource := "https://" + publicHost + "/mcp"
+		if opr.Resource != "" {
+			resource = opr.Resource
+		}
+		bearerMethods := []string{"header"}
+		if len(opr.BearerMethodsSupported) > 0 {
+			bearerMethods = opr.BearerMethodsSupported
+		}
+		scopes := []string{"basic"}
+		if len(opr.ScopesSupported) > 0 {
+			scopes = opr.ScopesSupported
+		}
+		envVars = append(envVars,
+			corev1.EnvVar{Name: "OAUTH_RESOURCE_NAME", Value: resourceName},
+			corev1.EnvVar{Name: "OAUTH_RESOURCE", Value: resource},
+			corev1.EnvVar{Name: "OAUTH_AUTHORIZATION_SERVERS", Value: strings.Join(opr.AuthorizationServers, ",")},
+			corev1.EnvVar{Name: "OAUTH_BEARER_METHODS_SUPPORTED", Value: strings.Join(bearerMethods, ",")},
+			corev1.EnvVar{Name: "OAUTH_SCOPES_SUPPORTED", Value: strings.Join(scopes, ",")},
+		)
 	}
 
 	return &appsv1.Deployment{

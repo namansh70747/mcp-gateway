@@ -305,6 +305,14 @@
 
 - When an MCPServerRegistration has a `caCertSecretRef` pointing to a CA certificate that did NOT sign the upstream server's certificate, the broker should fail the TLS handshake and the MCPServerRegistration should be in a not-ready state. No tools with the server's prefix should appear in the tools list.
 
+### [Happy] OAuth protected resource metadata served from CRD config
+
+- When an MCPGatewayExtension has `spec.oauthProtectedResource` configured with at least one authorization server, the controller should inject `OAUTH_*` env vars into the broker-router deployment and the `/.well-known/oauth-protected-resource` endpoint should return the configured metadata as JSON. The response should contain `authorization_servers`, `resource`, and `bearer_methods_supported` fields.
+
+### [Happy] OAuth protected resource reverts to defaults after removal
+
+- When `oauthProtectedResource` is removed from the MCPGatewayExtension spec, the controller should remove the OAUTH env vars from the broker-router deployment. After the deployment rolls out, the `/.well-known/oauth-protected-resource` endpoint should still respond but `authorization_servers` should revert to an empty array (the broker's built-in default when no OAUTH env vars are set).
+
 ## Common pitfalls
 
 - MCPServerRegistrations with empty prefix: `strings.HasPrefix(name, "")` matches all tools, including broker meta-tools (discover_tools, select_tools). Always use a non-empty prefix in tests.
