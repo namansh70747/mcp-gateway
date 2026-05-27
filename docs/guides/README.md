@@ -15,6 +15,7 @@
     - [Custom CA Certificates](./custom-ca-certificates.md)
 - [Authentication](./authentication.md)
 - [Authorization](./authorization.md)
+- [Auditing](./auditing.md)
 - [URL Elicitation](./url-elicitation.md)
 - [Scaling](./scaling.md)
 - [Tool Discovery](./tool-discovery.md)
