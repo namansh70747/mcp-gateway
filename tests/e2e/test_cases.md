@@ -315,6 +315,38 @@
 
 - When `oauthProtectedResource` is removed from the MCPGatewayExtension spec, the controller should remove the OAUTH env vars from the broker-router deployment. After the deployment rolls out, the `/.well-known/oauth-protected-resource` endpoint should still respond but `authorization_servers` should revert to an empty array (the broker's built-in default when no OAUTH env vars are set).
 
+### [Happy,UserSpecificList] User sees their own tools merged with cached tools
+
+When a user authenticates and sends `tools/list`, the response includes both the cached tools from standard servers and the user-specific tools from the user-specific-server, with the configured prefix applied.
+
+### [UserSpecificList] Different users get different tool lists
+
+When User A and User B each send `tools/list` in separate sessions, User A's response contains their tools but not User B's, and vice versa. Both responses contain common tools from the user-specific server.
+
+### [UserSpecificList] User-specific tools are prefixed
+
+When a user sends `tools/list` and the user-specific-server has a prefix configured, the tools returned from that server have the prefix applied. Unprefixed versions do not appear.
+
+### [UserSpecificList] Standard servers unaffected by userSpecificList
+
+Adding a user-specific-server does not change the tool list for standard servers. An unauthenticated client does not see user-scoped tools from the user-specific server.
+
+### [UserSpecificList] User-specific server down does not break tools/list
+
+When the user-specific-server is unreachable, `tools/list` still returns tools from all healthy standard servers without error.
+
+### [UserSpecificList] Tool call routing works for user-specific tools
+
+When a user discovers a tool from a user-specific-server via `tools/list` and then sends `tools/call` for that tool, the call is routed correctly to the upstream server and executes successfully.
+
+### [Security,UserSpecificList] Internal headers not forwarded to upstream
+
+When the broker forwards headers to a user-specific upstream, internal gateway headers (`x-mcp-virtualserver`, `x-mcp-authorized`) are stripped. The user's own `Authorization` header is forwarded.
+
+### [UserSpecificList] Virtual server filter applies to user-specific tools
+
+When an MCPVirtualServer is configured that includes a specific user-specific tool, only that tool is returned — user-specific tools are subject to the same virtual server filtering as cached tools.
+
 ## Common pitfalls
 
 - MCPServerRegistrations with empty prefix: `strings.HasPrefix(name, "")` matches all tools, including broker meta-tools (discover_tools, select_tools). Always use a non-empty prefix in tests.

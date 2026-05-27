@@ -41,6 +41,7 @@ type TestResourcesBuilder struct {
 	caCertSecretRef     *mcpv1alpha1.CACertSecretReference
 	sectionName         string
 	tokenURLElicitation *mcpv1alpha1.TokenURLElicitationConfig
+	userSpecificList    mcpv1alpha1.UserSpecificListPolicy
 	httpRoute           *gatewayapiv1.HTTPRoute
 	mcpServer           *mcpv1alpha1.MCPServerRegistration
 	serviceEntry        *istionetv1beta1.ServiceEntry
@@ -182,6 +183,12 @@ func (b *TestResourcesBuilder) WithSectionName(name string) *TestResourcesBuilde
 	return b
 }
 
+// WithUserSpecificList marks this server for per-user tool fetching.
+func (b *TestResourcesBuilder) WithUserSpecificList() *TestResourcesBuilder {
+	b.userSpecificList = mcpv1alpha1.UserSpecificListEnabled
+	return b
+}
+
 // Build constructs all the resources based on configuration. Must be called before GetObjects() or Register().
 func (b *TestResourcesBuilder) Build() *TestResourcesBuilder {
 	routeName := UniqueName("e2e-route-" + b.testName)
@@ -225,6 +232,9 @@ func (b *TestResourcesBuilder) Build() *TestResourcesBuilder {
 	}
 	if b.tokenURLElicitation != nil {
 		b.mcpServer.Spec.TokenURLElicitation = b.tokenURLElicitation
+	}
+	if b.userSpecificList != "" {
+		b.mcpServer.Spec.UserSpecificList = b.userSpecificList
 	}
 
 	if len(b.category) > 0 {

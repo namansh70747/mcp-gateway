@@ -12,3 +12,4 @@ Test servers in `config/test-servers/`:
 - **Conformance Server**: TypeScript SDK conformance test server
 - **Custom Response Server**: Tests custom response handling
 - **TLS Server**: Go SDK with native TLS support (tools: echo_tls, tls_info). Requires cert-manager; deployed via `make deploy-tls-test-server`
+- **User-Specific Server**: Go SDK, returns different tools per user based on Authorization header (userSpecificList feature testing)
