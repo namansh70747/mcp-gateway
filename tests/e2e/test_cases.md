@@ -312,7 +312,7 @@
 ### [HTTPS] [Happy] External GitHub MCP server discovers tools over public TLS
 
 - Registers the GitHub MCP server (`api.githubcopilot.com`) as an external hostname backend with a PAT credential. Verifies the broker connects over HTTPS, discovers at least one tool, and the config contains an `https://` URL.
-- **Skips unless** `GITHUB_MCP_PAT` env var is set. Intended for the `e2e-https-mcp.yml` nightly workflow once the `GITHUB_MCP_PAT` repo secret is configured.
+- **Fails unless** `GITHUB_MCP_PAT` env var is set. CI workflows source this from the `MCP_PAT` repo secret.
 
 ### [HTTPS] [RealCerts] In-cluster MCP server accessible over public TLS
 
@@ -334,7 +334,7 @@ make test-e2e-https
 | Test | PR CI | Nightly | Manual only |
 |------|-------|---------|-------------|
 | Private CA (happy + negative) | Yes | Yes | — |
-| GitHub external | — | Yes (needs `GITHUB_MCP_PAT` secret) | — |
+| GitHub external | Yes (needs `MCP_PAT` secret) | Yes | — |
 | Real public certs | — | — | Yes (needs real TLS cluster) |
 
 ### [Happy] OAuth protected resource metadata served from CRD config
