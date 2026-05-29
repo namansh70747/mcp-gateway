@@ -216,9 +216,11 @@ var _ = Describe("HTTPS External Backends", func() {
 		testResources = nil
 	})
 
-	It("[HTTPS] [Happy] External GitHub MCP server discovers tools over public TLS", func() {
+	It("[HTTPS] [HTTPS_EXTERNAL] External GitHub MCP server discovers tools over public TLS", func() {
 		pat := os.Getenv("GITHUB_MCP_PAT")
-		Expect(pat).NotTo(BeEmpty(), "GITHUB_MCP_PAT environment variable must be set")
+		if pat == "" {
+			Skip("GITHUB_MCP_PAT not set — skipping external GitHub MCP test")
+		}
 
 		By("Creating a Secret containing the GitHub PAT")
 		patSecret := &corev1.Secret{
@@ -282,7 +284,7 @@ var _ = Describe("HTTPS External Backends", func() {
 		}, TestTimeoutMedium, TestRetryInterval).Should(Succeed())
 	})
 
-	It("[HTTPS] [RealCerts] In-cluster MCP server accessible over public TLS", func() {
+	It("[HTTPS] [HTTPS_EXTERNAL] In-cluster MCP server accessible over public TLS via real certs", func() {
 		if os.Getenv("E2E_HTTPS_REAL_CERTS") != "true" {
 			Skip("Skipping: E2E_HTTPS_REAL_CERTS is not set to 'true'. " +
 				"This test requires a cluster with a real wildcard certificate.")

@@ -309,19 +309,26 @@
 - When an MCPServerRegistration has a `caCertSecretRef` pointing to a CA certificate that did NOT sign the upstream server's certificate, the broker should fail the TLS handshake and the MCPServerRegistration should be in a not-ready state. No tools with the server's prefix should appear in the tools list.
 - **Runs on PR CI** — same dependencies as the happy path test above.
 
-### [HTTPS] [Happy] External GitHub MCP server discovers tools over public TLS
+### [HTTPS] [HTTPS_EXTERNAL] External GitHub MCP server discovers tools over public TLS
 
 - Registers the GitHub MCP server (`api.githubcopilot.com`) as an external hostname backend with a PAT credential. Verifies the broker connects over HTTPS, discovers at least one tool, and the config contains an `https://` URL.
-- **Fails unless** `GITHUB_MCP_PAT` env var is set. CI workflows source this from the `MCP_PAT` repo secret.
+- **Skips unless** `GITHUB_MCP_PAT` env var is set. Not run on PR CI to avoid depending on an external service we don't own.
 
-### [HTTPS] [RealCerts] In-cluster MCP server accessible over public TLS
+### [HTTPS] [HTTPS_EXTERNAL] In-cluster MCP server accessible over public TLS via real certs
 
 - Registers an internal MCP server and verifies tools/list works end-to-end when the gateway is fronted by a real publicly-trusted TLS certificate. Connects via the HTTPS gateway URL and confirms tools with the expected prefix are discoverable.
 - **Cannot run on Kind.** Requires a cluster with a TLS-terminating load balancer and a publicly trusted wildcard certificate (e.g. OpenShift with Let's Encrypt). Previously manually verified on OpenShift 4.20 (see #450).
-- **Skips unless** `E2E_HTTPS_REAL_CERTS=true` and `E2E_SCHEME=https`. Run manually:
-  ```bash
-  E2E_HTTPS_REAL_CERTS=true E2E_SCHEME=https E2E_DOMAIN=your-cluster.example.com make test-e2e-https
-  ```
+- **Skips unless** `E2E_HTTPS_REAL_CERTS=true` and `E2E_SCHEME=https`.
+
+Both external tests are tagged `[HTTPS_EXTERNAL]` and skip on PR CI. Run them manually for sanity checks (e.g. before releases):
+
+```bash
+# GitHub MCP test (Kind)
+GITHUB_MCP_PAT=ghp_your_token make test-e2e-https
+
+# RealCerts test (cluster with real TLS)
+E2E_HTTPS_REAL_CERTS=true E2E_SCHEME=https E2E_DOMAIN=your-cluster.example.com make test-e2e-https
+```
 
 ## Running HTTPS tests
 
@@ -331,11 +338,11 @@ All HTTPS tests are tagged `[HTTPS]` and can be run together:
 make test-e2e-https
 ```
 
-| Test | PR CI | Manual only |
-|------|-------|-------------|
-| Private CA (happy + negative) | Yes | — |
-| GitHub external | Yes (needs `MCP_PAT` secret) | — |
-| Real public certs | — | Yes (needs real TLS cluster) |
+| Test | PR CI | Manual / release sanity |
+|------|-------|-------------------------|
+| Private CA (happy + negative) | Yes | Yes |
+| GitHub external | Skipped | Yes (needs `GITHUB_MCP_PAT`) |
+| Real public certs | Skipped | Yes (needs real TLS cluster) |
 
 ### [Happy] OAuth protected resource metadata served from CRD config
 
