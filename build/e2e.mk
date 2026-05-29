@@ -46,6 +46,11 @@ test-e2e-ci: test-e2e-deps enable-debug-logging ## Run e2e tests in CI (no setup
 test-e2e-auth-ci: test-e2e-deps enable-debug-logging ## Run auth e2e tests only (requires ci-auth-setup)
 	$(GINKGO) -v --tags=e2e --timeout=$(E2E_TIMEOUT) --fail-fast --focus="AuthPolicy" ./tests/e2e
 
+.PHONY: test-e2e-https
+test-e2e-https: test-e2e-deps enable-debug-logging ## Run HTTPS-focused E2E tests (requires cert-manager + MCP_PAT)
+	@echo "Running HTTPS MCP backend E2E tests..."
+	$(GINKGO) -v --tags=e2e --timeout=$(E2E_TIMEOUT) --fail-fast --focus="\[HTTPS\]" ./tests/e2e
+
 .PHONY: enable-debug-logging
 enable-debug-logging: ## Enable debug logging on controller and wait for restart
 	@echo "Enabling debug logging on mcp-gateway-controller..."
