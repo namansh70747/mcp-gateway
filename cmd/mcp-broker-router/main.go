@@ -277,7 +277,7 @@ func (a *app) run(ctx context.Context) {
 	lis, err := lc.Listen(ctx, "tcp", a.routerCfg.addr)
 	if err != nil {
 		a.logger.Error("grpc listen error", "error", err)
-		os.Exit(1)
+		stop <- os.Interrupt
 	}
 
 	go func() {
@@ -297,7 +297,7 @@ func (a *app) run(ctx context.Context) {
 		a.logger.Info("[grpc] starting MCP Router", "listening", a.routerCfg.addr)
 		if err := a.grpcServer.Serve(lis); err != nil {
 			a.logger.Error("grpc server error", "error", err)
-			os.Exit(1)
+			stop <- os.Interrupt
 		}
 	}()
 
@@ -305,7 +305,7 @@ func (a *app) run(ctx context.Context) {
 		a.logger.Info("[http] starting MCP Broker (public)", "listening", a.brokerServer.Addr)
 		if err := a.brokerServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			a.logger.Error("http broker error", "error", err)
-			os.Exit(1)
+			stop <- os.Interrupt
 		}
 	}()
 
@@ -315,8 +315,10 @@ func (a *app) run(ctx context.Context) {
 	shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownRelease()
 
-	if err := a.otelShutdown(shutdownCtx); err != nil {
-		a.logger.Error("OpenTelemetry shutdown error", "error", err)
+	if a.otelShutdown != nil {
+		if err := a.otelShutdown(shutdownCtx); err != nil {
+			a.logger.Error("OpenTelemetry shutdown error", "error", err)
+		}
 	}
 
 	if err := a.brokerServer.Shutdown(shutdownCtx); err != nil {
