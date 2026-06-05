@@ -113,12 +113,17 @@ func TestOnConfigChange(t *testing.T) {
 	}
 
 	conf.Servers = []*config.MCPServer{}
+	conf.VirtualServers = []*config.VirtualServer{}
 	b.OnConfigChange(context.TODO(), conf)
 	servers = b.RegisteredMCPServers()
 	require.Equal(t, 0, len(servers))
 	if _, ok := servers[server1.ID()]; ok {
 		t.Fatalf("expected server 1 not to be registered")
 	}
+
+	// deleting the virtual server must stop it from scoping tools
+	_, err = b.GetVirtualSeverByHeader("test/test")
+	require.Error(t, err, "expected deleted virtual server to no longer be found")
 
 	_ = b.Shutdown(context.Background())
 }

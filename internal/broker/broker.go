@@ -339,8 +339,9 @@ func (m *mcpBrokerImpl) OnConfigChange(ctx context.Context, conf *config.MCPServ
 		}
 	}
 
-	// register virtual servers
+	// rebuild virtual servers so deleted ones stop scoping tools
 	m.vsLock.Lock()
+	m.virtualServers = make(map[string]*config.VirtualServer, len(virtualServers))
 	for _, vs := range virtualServers {
 		m.virtualServers[vs.Name] = vs
 	}
