@@ -1,5 +1,30 @@
 # Debugging commands (most are accessed via main Makefile)
 
+MCP_SYSTEM_NS ?= mcp-system
+
+# Enable debug logging on the controller and all broker-router deployments
+.PHONY: debug-mcp
+debug-mcp:
+	@echo "Enabling debug logging on controller and broker-router in $(MCP_SYSTEM_NS)..."
+	@kubectl patch deployment mcp-gateway-controller -n $(MCP_SYSTEM_NS) --type=json \
+		-p '[{"op":"replace","path":"/spec/template/spec/containers/0/command","value":["./mcp_controller","--log-level=-4"]}]' 2>/dev/null && \
+		echo "  controller: debug enabled" || echo "  controller: not found"
+	@for DEP in $$(kubectl get deployments -n $(MCP_SYSTEM_NS) -l app.kubernetes.io/name=mcp-gateway -o name 2>/dev/null); do \
+		NAME=$$(echo $$DEP | cut -d'/' -f2); \
+		kubectl get $$DEP -n $(MCP_SYSTEM_NS) -o jsonpath='{.spec.template.spec.containers[0].command}' | \
+			grep -q -- '--log-level=' && \
+			echo "  $$NAME: log-level already set, skipping" && continue; \
+		kubectl patch $$DEP -n $(MCP_SYSTEM_NS) --type=json \
+			-p '[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--log-level=-4"}]' && \
+			echo "  $$NAME: debug enabled"; \
+	done
+	@echo "Waiting for rollouts..."
+	@kubectl rollout status deployment/mcp-gateway-controller -n $(MCP_SYSTEM_NS) --timeout=60s 2>/dev/null || true
+	@for DEP in $$(kubectl get deployments -n $(MCP_SYSTEM_NS) -l app.kubernetes.io/name=mcp-gateway -o name 2>/dev/null); do \
+		kubectl rollout status $$DEP -n $(MCP_SYSTEM_NS) --timeout=60s 2>/dev/null || true; \
+	done
+	@echo "Debug logging enabled."
+
 # Enable debug logging for Envoy
 debug-envoy-impl:
 	@echo "Enabling debug logging for all Istio gateways..."

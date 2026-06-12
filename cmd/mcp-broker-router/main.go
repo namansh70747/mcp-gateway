@@ -261,9 +261,6 @@ func (a *app) buildHairpinClient() {
 		panic("failed to build hairpin HTTP client: " + err.Error())
 	}
 	a.hairpinClient = hc
-	if hc != nil {
-		a.logger.Info("hairpin TLS client configured", "server_name", a.brokerCfg.publicHost)
-	}
 }
 
 func (a *app) registerObservers() {

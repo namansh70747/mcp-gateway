@@ -220,7 +220,11 @@ func (r *MCPReconciler) Reconcile(ctx context.Context, req reconcile.Request) (r
 		}
 	}
 
-	mcpServerconfig, err := r.buildMCPServerConfig(ctx, targetRoute, mcpsr)
+	var matchedGateway *gatewayv1.Gateway
+	if len(validGateways) > 0 {
+		matchedGateway = validGateways[0]
+	}
+	mcpServerconfig, err := r.buildMCPServerConfig(ctx, targetRoute, mcpsr, matchedGateway)
 	if err != nil {
 		if err := r.updateStatus(ctx, mcpsr, false, conditionReasonNotReady, err.Error(), 0); err != nil {
 			if apierrors.IsConflict(err) {
@@ -388,21 +392,27 @@ func (r *MCPReconciler) setMCPServerRegistrationStatus(ctx context.Context, mcpG
 	return errServerNotPresent
 }
 
-func (r *MCPReconciler) buildMCPServerConfig(ctx context.Context, targetRoute *gatewayv1.HTTPRoute, mcpsr *mcpv1alpha1.MCPServerRegistration) (*config.MCPServer, error) {
+func (r *MCPReconciler) buildMCPServerConfig(ctx context.Context, targetRoute *gatewayv1.HTTPRoute, mcpsr *mcpv1alpha1.MCPServerRegistration, gateway *gatewayv1.Gateway) (*config.MCPServer, error) {
 	if mcpsr.DeletionTimestamp != nil {
 		// don't add deleting mcpserver
 		return nil, fmt.Errorf("cant generate config for deleting server %s/%s", mcpsr.Namespace, mcpsr.Name)
 	}
-	serverInfo, err := r.buildServerInfoFromHTTPRoute(ctx, targetRoute, mcpsr.Spec.Path)
+	serverInfo, err := r.buildServerInfoFromHTTPRoute(ctx, targetRoute, mcpsr.Spec.Path, gateway)
 	if err != nil {
 		return nil, err
 	}
 
 	// cspell:ignore mcpsr
 	serverName := mcpServerName(mcpsr)
+	// if a CA cert is configured, the upstream must be HTTPS
+	endpoint := serverInfo.Endpoint
+	if mcpsr.Spec.CACertSecretRef != nil && strings.HasPrefix(endpoint, "http://") {
+		endpoint = "https://" + strings.TrimPrefix(endpoint, "http://")
+	}
+
 	serverConfig := config.MCPServer{
 		Name:             serverName,
-		URL:              serverInfo.Endpoint,
+		URL:              endpoint,
 		Hostname:         serverInfo.Hostname,
 		Prefix:           mcpsr.Spec.Prefix,
 		State:            string(mcpsr.Spec.State),
@@ -484,7 +494,7 @@ func (r *MCPReconciler) buildMCPServerConfig(ctx context.Context, targetRoute *g
 	return &serverConfig, nil
 }
 
-func (r *MCPReconciler) buildServerInfoFromHTTPRoute(ctx context.Context, httpRoute *gatewayv1.HTTPRoute, path string) (*ServerInfo, error) {
+func (r *MCPReconciler) buildServerInfoFromHTTPRoute(ctx context.Context, httpRoute *gatewayv1.HTTPRoute, path string, gateway *gatewayv1.Gateway) (*ServerInfo, error) {
 	route := WrapHTTPRoute(httpRoute)
 
 	if err := route.Validate(); err != nil {
@@ -517,7 +527,7 @@ func (r *MCPReconciler) buildServerInfoFromHTTPRoute(ctx context.Context, httpRo
 			return nil, fmt.Errorf("failed to get service %s: %w", route.BackendName(), err)
 		}
 
-		endpoint, routingHostname = r.buildServiceEndpoint(route, service, path)
+		endpoint, routingHostname = r.buildServiceEndpoint(route, service, path, gateway)
 
 	} else {
 		return nil, fmt.Errorf("unsupported backend reference kind: %s", route.BackendKind())
@@ -533,7 +543,7 @@ func (r *MCPReconciler) buildServerInfoFromHTTPRoute(ctx context.Context, httpRo
 }
 
 // buildServiceEndpoint builds the endpoint URL and routing hostname for a Service backend
-func (r *MCPReconciler) buildServiceEndpoint(route *HTTPRouteWrapper, service *corev1.Service, path string) (endpoint, routingHostname string) {
+func (r *MCPReconciler) buildServiceEndpoint(route *HTTPRouteWrapper, service *corev1.Service, path string, gateway *gatewayv1.Gateway) (endpoint, routingHostname string) {
 	isExternal := service.Spec.Type == corev1.ServiceTypeExternalName
 
 	var hostAndPort string
@@ -547,7 +557,7 @@ func (r *MCPReconciler) buildServiceEndpoint(route *HTTPRouteWrapper, service *c
 		hostAndPort = fmt.Sprintf("%s:%d", hostAndPort, *route.BackendPort())
 	}
 
-	protocol := r.determineProtocol(route, service, isExternal)
+	protocol := r.determineProtocol(route, service, isExternal, gateway)
 	endpoint = fmt.Sprintf("%s://%s%s", protocol, hostAndPort, path)
 
 	if isExternal {
@@ -564,7 +574,7 @@ func (r *MCPReconciler) buildServiceEndpoint(route *HTTPRouteWrapper, service *c
 }
 
 // determineProtocol determines the protocol (http/https) for the service endpoint
-func (r *MCPReconciler) determineProtocol(route *HTTPRouteWrapper, service *corev1.Service, isExternal bool) string {
+func (r *MCPReconciler) determineProtocol(route *HTTPRouteWrapper, service *corev1.Service, isExternal bool, gateway *gatewayv1.Gateway) string {
 	if isExternal {
 		for _, port := range service.Spec.Ports {
 			if route.BackendPort() != nil && port.Port == *route.BackendPort() {
@@ -577,7 +587,7 @@ func (r *MCPReconciler) determineProtocol(route *HTTPRouteWrapper, service *core
 		return "http"
 	}
 
-	if route.UsesHTTPS() {
+	if route.UsesHTTPS(gateway) {
 		return "https"
 	}
 	return "http"
