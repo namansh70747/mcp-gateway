@@ -34,7 +34,14 @@ ci-install-infra:
 .PHONY: ci-setup
 ci-setup: tools kind-create-cluster ci-gateway-images gateway-api-install ci-install-infra install-crd ## Setup environment for CI e2e tests
 	@echo "Setting up CI environment..."
-	# Deploy standard mcp-gateway (mcp.127-0-0-1.sslip.io)
+	# Create gateway namespace early — needed by both deploy-gateway and the
+	# gateway TLS cert issued by deploy-tls-test-server.
+	$(KUBECTL) apply -f config/istio/gateway/namespace.yaml
+	# Deploy TLS infra — installs cert-manager, creates private CA, issues the
+	# gateway HTTPS cert (mcp-gateway-tls-cert) and the TLS test server cert.
+	# Must run before deploy-gateway so the mcp-tls listener has its cert ready.
+	"$(MAKE)" deploy-tls-test-server
+	# Deploy standard mcp-gateway (includes mcp-tls HTTPS listener)
 	"$(MAKE)" deploy-gateway
 	# Deploy e2e gateways (gateway-1, gateway-2)
 	"$(MAKE)" deploy-e2e-gateways
@@ -42,8 +49,6 @@ ci-setup: tools kind-create-cluster ci-gateway-images gateway-api-install ci-ins
 	"$(MAKE)" deploy-controller-only
 	# Deploy and wait for test servers
 	"$(MAKE)" deploy-test-servers-ci
-	# Deploy TLS test server (cert-manager already installed, creates CA, issues cert)
-	"$(MAKE)" deploy-tls-test-server
 	@echo "CI setup complete (3 gateways: mcp-gateway, e2e-1, e2e-2)"
 
 # Deploy test servers for CI (TEST_SERVER_IMAGE_SOURCE selects build vs pull)
