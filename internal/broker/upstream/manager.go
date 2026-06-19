@@ -525,6 +525,13 @@ func (man *MCPManager) setStatus(err error, toolCount int, promptCount int, inva
 	if err != nil {
 		man.status.Message = err.Error()
 		man.status.Ready = false
+		// report the tools/prompts actually being served, not a stale count: 0 when they were
+		// removed (connect/ping failure, rejected server), or the cached count when a transient
+		// tools/list error leaves the previously served set in place.
+		man.toolsLock.RLock()
+		man.status.TotalTools = len(man.tools)
+		man.status.TotalPrompts = len(man.prompts)
+		man.toolsLock.RUnlock()
 		return
 	}
 	man.status.TotalTools = toolCount

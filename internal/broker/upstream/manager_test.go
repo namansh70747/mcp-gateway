@@ -420,6 +420,44 @@ func TestMCPManager_setStatus_ProtocolVersions(t *testing.T) {
 	}
 }
 
+// TestMCPManager_setStatus_ErrorReportsServedCount checks the error path reports the count of
+// tools/prompts actually being served rather than leaving a stale count from the last healthy
+// cycle. When the server goes not-ready and its tools were removed the count must drop to 0; when
+// a transient list error leaves the cached set in place the count must stay accurate.
+func TestMCPManager_setStatus_ErrorReportsServedCount(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	t.Run("clears count when tools were removed", func(t *testing.T) {
+		mock := newMockMCP("test-server", "test_")
+		manager, err := NewUpstreamMCPManager(mock, newMockToolsAdderDeleter(), nil, logger, 0, mcpv1alpha1.InvalidToolPolicyFilterOut)
+		require.NoError(t, err)
+		// simulate a prior healthy cycle that reported tools, then a failure that removed them
+		manager.status.TotalTools = 5
+		manager.status.TotalPrompts = 2
+
+		manager.setStatus(fmt.Errorf("connection lost"), 0, 0, nil, nil)
+
+		assert.False(t, manager.status.Ready)
+		assert.Equal(t, 0, manager.status.TotalTools, "removed tools should drop the count to 0")
+		assert.Equal(t, 0, manager.status.TotalPrompts, "removed prompts should drop the count to 0")
+	})
+
+	t.Run("keeps count when tools are still served", func(t *testing.T) {
+		mock := newMockMCP("test-server", "test_")
+		manager, err := NewUpstreamMCPManager(mock, newMockToolsAdderDeleter(), nil, logger, 0, mcpv1alpha1.InvalidToolPolicyFilterOut)
+		require.NoError(t, err)
+		// a transient tools/list error leaves the previously served set in place
+		manager.tools = make([]mcp.Tool, 3)
+		manager.prompts = make([]mcp.Prompt, 2)
+
+		manager.setStatus(fmt.Errorf("list failed"), 3, 0, nil, nil)
+
+		assert.False(t, manager.status.Ready)
+		assert.Equal(t, 3, manager.status.TotalTools, "still-served tools should keep their count")
+		assert.Equal(t, 2, manager.status.TotalPrompts, "still-served prompts should keep their count")
+	})
+}
+
 func TestPrefixedName(t *testing.T) {
 	testCases := []struct {
 		name     string
